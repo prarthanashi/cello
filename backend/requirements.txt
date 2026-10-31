@@ -1,0 +1,3 @@
+Flask>=3.0,<4
+# Optional: only needed to ingest text-based PDF scheme documents (see data/documents)
+pypdf>=4.0

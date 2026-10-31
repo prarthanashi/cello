@@ -1,0 +1,14 @@
+{
+  "name": "benefitbridge-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "BenefitBridge frontend (dependency-free ES modules; no npm install required)",
+  "scripts": {
+    "dev": "node scripts/serve.mjs src 5173",
+    "build": "node scripts/build.mjs",
+    "preview": "node scripts/serve.mjs dist 4173",
+    "test": "node --test"
+  },
+  "engines": { "node": ">=18" }
+}
