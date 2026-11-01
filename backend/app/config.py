@@ -7,9 +7,7 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
-DEFAULT_OFFICIAL_SUFFIXES = (
-    "gov.in", "nic.in", "mudra.org.in", "tiic.org", "jansamarth.in",
-)
+DEFAULT_OFFICIAL_SUFFIXES = ("gov.in", "nic.in")
 
 
 def _load_dotenv(path: Path) -> None:
@@ -29,8 +27,8 @@ class Settings:
     ai_api_key: str | None
     ai_model: str
     frontend_origins: tuple
-    data_path: Path
-    documents_path: Path
+    supabase_url: str | None
+    supabase_secret_key: str | None
     review_window_days: int
     official_domain_suffixes: tuple
 
@@ -47,8 +45,8 @@ def load_settings() -> Settings:
         ai_api_key=os.environ.get("AI_API_KEY") or None,
         ai_model=os.environ.get("AI_MODEL", "unset"),
         frontend_origins=tuple(o.strip().rstrip("/") for o in origins.split(",") if o.strip()),
-        data_path=Path(os.environ.get("DATA_PATH", PROJECT_ROOT / "data" / "schemes.json")),
-        documents_path=Path(os.environ.get("DOCUMENTS_PATH", PROJECT_ROOT / "data" / "documents")),
+        supabase_url=os.environ.get("SUPABASE_URL") or None,
+        supabase_secret_key=os.environ.get("SUPABASE_SECRET_KEY") or None,
         review_window_days=int(os.environ.get("REVIEW_WINDOW_DAYS", "90")),
         official_domain_suffixes=tuple(
             s.strip().lower() for s in suffixes.split(",") if s.strip()

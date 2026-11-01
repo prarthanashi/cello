@@ -9,10 +9,11 @@ from types import SimpleNamespace
 
 from flask import Flask, g, jsonify, request
 
-from .catalogue import load_catalogue
+from .catalogue import Catalogue
 from .config import Settings, load_settings
-from .retrieval import KeywordRetriever, ingest_documents
+from .retrieval import KeywordRetriever, catalogue_chunks
 from .routes import bp, err
+from .supabase_catalogue import load_supabase_catalogue
 
 log = logging.getLogger("benefitbridge")
 
@@ -25,14 +26,16 @@ def create_app(settings: Settings | None = None, *, catalogue=None, retriever=No
     app.config["MAX_CONTENT_LENGTH"] = 64 * 1024  # profiles/questions are tiny
 
     if catalogue is None:  # NB: an empty Catalogue is falsy, so never use `or` here
-        catalogue = load_catalogue(settings.data_path, settings.official_domain_suffixes)
-    warnings: list[str] = []
+        try:
+            catalogue = load_supabase_catalogue(settings, settings.official_domain_suffixes)
+        except Exception as exc:
+            log.error("supabase_catalogue_load_failed category=%s", type(exc).__name__)
+            catalogue = Catalogue([], [{"scheme_id": None, "errors": ["Supabase catalogue unavailable"]}])
     if retriever is None:
-        chunks, warnings = ingest_documents(settings.documents_path, catalogue)
-        retriever = KeywordRetriever(chunks)
+        retriever = KeywordRetriever(catalogue_chunks(catalogue))
     app.extensions["bb"] = SimpleNamespace(
         settings=settings, catalogue=catalogue, retriever=retriever,
-        today=today or date.today, ingestion_warnings=warnings)
+        today=today or date.today)
     app.register_blueprint(bp)
 
     @app.before_request

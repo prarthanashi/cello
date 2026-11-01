@@ -1,12 +1,10 @@
-"""Scheme data model, L2 record validation and the JSON catalogue repository."""
+"""Scheme data model and record validation."""
 from __future__ import annotations
 
-import json
 import logging
 import re
 from dataclasses import asdict, dataclass, field
 from datetime import date
-from pathlib import Path
 from urllib.parse import urlparse
 
 from . import constants as c
@@ -103,10 +101,17 @@ def _validate_rules(rules, errors: list[str]) -> None:
             errors.append(f"{tag}.value must be a list for operator {op}")
         if op in ("lte", "gte") and (isinstance(val, bool) or not isinstance(val, (int, float))):
             errors.append(f"{tag}.value must be a number for operator {op}")
+        if op == "between" and (
+            not isinstance(val, list) or len(val) != 2 or
+            any(isinstance(v, bool) or not isinstance(v, (int, float)) for v in val)
+        ):
+            errors.append(f"{tag}.value must contain two numbers for operator {op}")
         if not isinstance(r.get("mandatory"), bool):
             errors.append(f"{tag}.mandatory must be true or false")
         if not isinstance(r.get("explanation"), str) or not r["explanation"].strip():
             errors.append(f"{tag}.explanation is required")
+        if not isinstance(r.get("source_excerpt"), str) or not r["source_excerpt"].strip():
+            errors.append(f"{tag}.source_excerpt is required")
 
 
 def validate_scheme_record(raw, suffixes) -> list[str]:
@@ -213,15 +218,3 @@ def build_catalogue(raw_records: list, suffixes) -> Catalogue:
     for p in problems:
         log.warning("catalogue_validation scheme_id=%s problems=%d", p["scheme_id"], len(p["errors"]))
     return Catalogue(schemes, problems)
-
-
-def load_catalogue(path: Path, suffixes) -> Catalogue:
-    try:
-        data = json.loads(Path(path).read_text(encoding="utf-8"))
-        records = data["schemes"]
-        if not isinstance(records, list):
-            raise ValueError("'schemes' must be a list")
-    except (OSError, ValueError, KeyError) as exc:
-        log.error("catalogue_load_failed category=%s", type(exc).__name__)
-        return Catalogue([], [{"scheme_id": None, "errors": ["catalogue file unreadable or malformed"]}])
-    return build_catalogue(records, suffixes)

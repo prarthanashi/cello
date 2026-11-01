@@ -1,0 +1,21 @@
+# Secrets and local config (never commit)
+.env
+.env.*
+!.env.example
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+# Node
+node_modules/
+
+# Generated builds
+dist/
+
+# OS and logs
+.DS_Store
+Thumbs.db
+*.log

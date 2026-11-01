@@ -38,13 +38,12 @@ REQUIREMENT_LABELS = {
     "conditional": "Conditional",
     "confirm": "Confirm with official source",
 }
-OPERATORS = ["eq", "ne", "in", "not_in", "lte", "gte", "contains_any"]
+OPERATORS = ["eq", "ne", "in", "not_in", "lte", "gte", "between", "contains_any"]
 RULE_FIELDS = [
     "state_ut", "district", "business_type", "ownership_category", "annual_turnover_inr",
     "employee_count", "business_stage", "assistance_need", "registration_status",
 ]
 CATALOGUE_NOTICE = (
-    "BenefitBridge's catalogue is a small, manually curated set of schemes and is not complete. "
-    "Check the last-verified date on each record; rules may have changed. "
-    "Verify everything on the official source before acting."
+    "Scheme information is loaded from the BenefitBridge database and may be incomplete or out of date. "
+    "Check the last-verified date and confirm details on the official source before acting."
 )

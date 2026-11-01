@@ -3,8 +3,8 @@ import unittest
 from app import ai_service as ai
 from .helpers import make_settings
 
-CHUNK = {"chunk_id": "x:1", "scheme_id": "in-central-pmmy", "text": "Loans are grouped as Shishu, Kishor and Tarun.",
-         "source_title": "PMMY", "url": "https://www.mudra.org.in/", "page_or_section": "Benefits",
+CHUNK = {"chunk_id": "x:1", "scheme_id": "test-central-loan", "text": "Credit support may be provided in different categories.",
+         "source_title": "Example scheme source", "url": "https://example.gov.in/", "page_or_section": "Benefits",
          "last_verified_at": "2026-10-31"}
 
 
@@ -16,7 +16,7 @@ class AIServiceTests(unittest.TestCase):
         self.assertEqual(ans.mode, "no_context")
 
     def test_citations_must_match_retrieved_sources(self):
-        raw = {"answer": "x", "citations": [{"scheme_id": "in-central-pmmy", "url": "https://fake.example.com/"}],
+        raw = {"answer": "x", "citations": [{"scheme_id": "test-central-loan", "url": "https://fake.example.com/"}],
                "uncertainty_note": None}
         with self.assertRaises(ai.InvalidAIOutputError):
             ai.validate_assistant_output(raw, [CHUNK])
@@ -26,9 +26,9 @@ class AIServiceTests(unittest.TestCase):
 
     def test_valid_output_rebuilds_citations_from_retrieval_metadata(self):
         raw = {"answer": "Loans have categories.", "uncertainty_note": None, "citations": [
-            {"scheme_id": "in-central-pmmy", "url": CHUNK["url"], "excerpt": "MODEL INVENTED TEXT", "source_title": "Fake"}]}
+            {"scheme_id": "test-central-loan", "url": CHUNK["url"], "excerpt": "MODEL INVENTED TEXT", "source_title": "Fake"}]}
         out = ai.validate_assistant_output(raw, [CHUNK])
-        self.assertEqual(out.citations[0]["source_title"], "PMMY")
+        self.assertEqual(out.citations[0]["source_title"], "Example scheme source")
         self.assertNotIn("INVENTED", out.citations[0]["excerpt"])
 
     def test_answer_without_any_citation_is_rejected(self):
@@ -52,9 +52,14 @@ class AIServiceTests(unittest.TestCase):
         self.assertEqual(fb.citations[0]["url"], CHUNK["url"])
 
     def test_key_alone_is_not_enough_while_provider_is_a_stub(self):
-        self.assertFalse(ai.ai_configured(make_settings(ai_api_key="k")))
-        with self.assertRaises(ai.AIConfigurationError):
-            ai.answer_scheme_question("Which loans exist?", [CHUNK], settings=make_settings(ai_api_key="k"))
+        original = ai.PROVIDER_IMPLEMENTED
+        ai.PROVIDER_IMPLEMENTED = False
+        try:
+            self.assertFalse(ai.ai_configured(make_settings(ai_api_key="k")))
+            with self.assertRaises(ai.AIConfigurationError):
+                ai.answer_scheme_question("Which loans exist?", [CHUNK], settings=make_settings(ai_api_key="k"))
+        finally:
+            ai.PROVIDER_IMPLEMENTED = original
 
     def test_question_validation(self):
         for bad in ("", "   ", None, 5, "x" * 2001):

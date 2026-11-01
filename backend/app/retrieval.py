@@ -1,24 +1,14 @@
-"""L5/L6 — document ingestion and a small, replaceable keyword retriever (BM25-style).
-
-Chunks always carry: scheme_id, url, source_title, page_or_section, last_verified_at.
-Ingestion is review-gated: a document is only indexed if its scheme exists and its URL is one of
-that scheme's official source URLs. Scanned PDFs with no text are reported, never indexed (E12).
-"""
+"""A small, replaceable keyword retriever (BM25-style) over Supabase scheme records."""
 from __future__ import annotations
 
-import json
-import logging
 import math
 import re
 from collections import Counter
 from dataclasses import asdict, dataclass
-from pathlib import Path
 from typing import Protocol
 
-from .catalogue import Catalogue, parse_iso_date
+from .catalogue import Catalogue
 
-log = logging.getLogger("benefitbridge.retrieval")
-MAX_CHUNK_CHARS = 900
 MIN_SCORE = 0.35
 
 STOPWORDS = set(
@@ -100,106 +90,39 @@ class KeywordRetriever:
         return [ch for _, ch in scored[:top_k]]
 
 
-# ---------------------------------------------------------------- ingestion
-def _split(text: str) -> list[str]:
-    parts, buf = [], ""
-    for para in re.split(r"\n\s*\n", text.strip()):
-        if buf and len(buf) + len(para) > MAX_CHUNK_CHARS:
-            parts.append(buf.strip())
-            buf = ""
-        buf += para.strip() + "\n\n"
-    if buf.strip():
-        parts.append(buf.strip())
-    return parts
-
-
-def _parse_markdown(path: Path):
-    raw = path.read_text(encoding="utf-8")
-    m = re.match(r"^---\n(.*?)\n---\n(.*)$", raw, re.S)
-    if not m:
-        raise ValueError("missing front matter")
-    meta = {}
-    for line in m.group(1).splitlines():
-        if ":" in line:
-            k, v = line.split(":", 1)
-            meta[k.strip()] = v.strip()
-    sections, current, buf = [], "Overview", []
-    for line in m.group(2).splitlines():
-        if line.startswith("## "):
-            if "".join(buf).strip():
-                sections.append((current, "\n".join(buf)))
-            current, buf = line[3:].strip(), []
-        else:
-            buf.append(line)
-    if "".join(buf).strip():
-        sections.append((current, "\n".join(buf)))
-    return meta, sections
-
-
-def _check_meta(meta: dict, catalogue: Catalogue, name: str) -> str | None:
-    scheme = catalogue.get(meta.get("scheme_id", ""))
-    if scheme is None:
-        return f"{name}: unknown scheme_id; document not indexed"
-    if meta.get("url") not in scheme.official_source_urls:
-        return f"{name}: url is not an official source URL of {scheme.scheme_id}; document not indexed"
-    if not meta.get("title") or parse_iso_date(meta.get("verified")) is None:
-        return f"{name}: needs title and ISO 'verified' date; document not indexed"
-    return None
-
-
-def _ingest_pdf(path: Path, catalogue: Catalogue):
-    sidecar = path.with_suffix(path.suffix + ".json")
-    try:
-        meta = json.loads(sidecar.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return [], [f"{path.name}: missing or invalid metadata sidecar ({sidecar.name}); document not indexed"]
-    err = _check_meta(meta, catalogue, path.name)
-    if err:
-        return [], [err]
-    try:
-        from pypdf import PdfReader  # optional dependency
-    except ImportError:
-        return [], [f"{path.name}: pypdf is not installed; PDF not indexed"]
-    chunks = []
-    try:
-        reader = PdfReader(str(path))
-        for i, page in enumerate(reader.pages, start=1):
-            text = (page.extract_text() or "").strip()
-            for j, part in enumerate(_split(text) if text else []):
-                chunks.append(Chunk(f"{meta['scheme_id']}:{path.stem}:p{i}:{j}", meta["scheme_id"], part,
-                                    meta["title"], meta["url"], f"page {i}", meta["verified"]))
-    except Exception as exc:  # corrupt PDFs must not crash startup
-        return [], [f"{path.name}: could not be read ({type(exc).__name__}); document not indexed"]
-    if not chunks:  # E12
-        return [], [f"{path.name}: No readable text was found. Use a text-based PDF or review this document manually."]
-    return chunks, []
-
-
-def ingest_documents(directory: Path, catalogue: Catalogue) -> tuple[list[Chunk], list[str]]:
+def catalogue_chunks(catalogue: Catalogue) -> list[Chunk]:
+    """Build assistant context from persisted scheme fields and grounded rule excerpts."""
     chunks: list[Chunk] = []
-    warnings: list[str] = []
-    directory = Path(directory)
-    if not directory.is_dir():
-        return [], [f"documents directory not found: {directory.name}"]
-    for path in sorted(directory.iterdir()):
-        if path.suffix.lower() in (".md", ".txt"):
-            try:
-                meta, sections = _parse_markdown(path)
-            except (OSError, ValueError) as exc:
-                warnings.append(f"{path.name}: {exc}; document not indexed")
-                continue
-            err = _check_meta(meta, catalogue, path.name)
-            if err:
-                warnings.append(err)
-                continue
-            for section, body in sections:
-                for j, part in enumerate(_split(body)):
-                    chunks.append(Chunk(f"{meta['scheme_id']}:{path.stem}:{section.lower().replace(' ', '-')}:{j}",
-                                        meta["scheme_id"], part, meta["title"], meta["url"], section, meta["verified"]))
-        elif path.suffix.lower() == ".pdf":
-            c, w = _ingest_pdf(path, catalogue)
-            chunks += c
-            warnings += w
-    for w in warnings:
-        log.warning("ingestion_warning %s", w)
-    return chunks, warnings
+    for scheme in catalogue.all():
+        if not scheme.official_source_urls:
+            continue
+        sections = [
+            ("Overview", [scheme.summary]),
+            ("Benefits", scheme.benefits),
+            ("Eligibility", [
+                text
+                for rule in scheme.eligibility_rules
+                for text in (rule.get("explanation", ""), rule.get("source_excerpt", ""))
+            ]),
+            ("Documents", [
+                text
+                for document in scheme.required_documents
+                for text in (document.get("name", ""), document.get("notes", ""))
+            ]),
+            ("Application", scheme.application_steps),
+            ("Exclusions", scheme.exclusions),
+        ]
+        for url_index, url in enumerate(scheme.official_source_urls):
+            for section, values in sections:
+                text = "\n".join(value.strip() for value in values if isinstance(value, str) and value.strip())
+                if text:
+                    chunks.append(Chunk(
+                        f"{scheme.scheme_id}:source-{url_index}:{section.lower()}",
+                        scheme.scheme_id,
+                        text,
+                        scheme.source_title or scheme.name,
+                        url,
+                        section,
+                        scheme.last_verified_at,
+                    ))
+    return chunks
