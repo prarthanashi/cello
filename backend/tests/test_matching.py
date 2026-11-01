@@ -43,6 +43,14 @@ class MatchingTests(unittest.TestCase):
         self.assertEqual(match_scheme(s, profile(annual_turnover_inr=1001), TODAY)["match_status"], "unlikely_to_qualify")
         self.assertEqual(match_scheme(s, profile(annual_turnover_inr=0), TODAY)["match_status"], "potential_match")
 
+    def test_between_rule_matches_inclusive_numeric_range(self):
+        scheme = make_scheme(eligibility_rules=[
+            {"field": "annual_turnover_inr", "operator": "between", "value": [100, 1000],
+             "mandatory": True, "explanation": "Turnover range."}])
+        self.assertEqual(match_scheme(scheme, profile(annual_turnover_inr=100), TODAY)["match_status"], "potential_match")
+        self.assertEqual(match_scheme(scheme, profile(annual_turnover_inr=500), TODAY)["match_status"], "potential_match")
+        self.assertEqual(match_scheme(scheme, profile(annual_turnover_inr=1001), TODAY)["match_status"], "unlikely_to_qualify")
+
     def test_supporting_criteria_do_not_change_status(self):
         s = make_scheme(eligibility_rules=[
             {"field": "business_stage", "operator": "in", "value": ["newly_operating"], "mandatory": True, "explanation": "a"},

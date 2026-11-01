@@ -43,6 +43,8 @@ def evaluate_rule(profile: dict, rule: dict) -> str:
             ok = float(value) <= float(target)
         elif op == "gte":
             ok = float(value) >= float(target)
+        elif op == "between":
+            ok = float(target[0]) <= float(value) <= float(target[1])
         elif op == "contains_any":
             ok = bool(set(value if isinstance(value, list) else [value]) & set(target))
         else:

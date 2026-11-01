@@ -1,0 +1,49 @@
+{
+  "builtAt": "2026-11-01T06:28:30.779Z",
+  "files": [
+    {
+      "file": "config.js",
+      "bytes": 322
+    },
+    {
+      "file": "index.html",
+      "bytes": 2094
+    },
+    {
+      "file": "js\\api.js",
+      "bytes": 1634
+    },
+    {
+      "file": "js\\dom.js",
+      "bytes": 1065
+    },
+    {
+      "file": "js\\main.js",
+      "bytes": 3479
+    },
+    {
+      "file": "js\\state.js",
+      "bytes": 1032
+    },
+    {
+      "file": "js\\util.js",
+      "bytes": 5136
+    },
+    {
+      "file": "js\\views\\matches.js",
+      "bytes": 6221
+    },
+    {
+      "file": "js\\views\\profile.js",
+      "bytes": 9145
+    },
+    {
+      "file": "js\\views\\scheme.js",
+      "bytes": 11113
+    },
+    {
+      "file": "styles.css",
+      "bytes": 10896
+    }
+  ]
+}

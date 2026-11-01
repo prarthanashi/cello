@@ -163,8 +163,8 @@ def ask():
               if (s := b.catalogue.get(ch.scheme_id)) is not None and not s.is_inactive]
     urls = list(scheme.official_source_urls) if scheme else sorted({ch.url for ch in chunks})
     verified = sorted({ch.last_verified_at for ch in chunks})
-    freshness = (f"Based on catalogue notes last verified {', '.join(verified)}. Confirm on the official source."
-                 if verified else "No source notes were retrieved.")
+    freshness = (f"Based on scheme information last verified {', '.join(verified)}. Confirm on the official source."
+                 if verified else "No scheme details were retrieved.")
     try:
         answer = answer_scheme_question(question, chunks, settings=b.settings, profile_fields=profile_fields)
     except AIServiceError as exc:
